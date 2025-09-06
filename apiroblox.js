@@ -4,7 +4,16 @@ import fetch from "node-fetch";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Função para pegar ID pelo username
+function formatDate(isoString) {
+  const d = new Date(isoString);
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
+}
+
 async function getUserId(username) {
   const res = await fetch(`https://users.roblox.com/v1/usernames/users`, {
     method: "POST",
@@ -15,7 +24,6 @@ async function getUserId(username) {
   return data.data[0]?.id;
 }
 
-// 🔹 Rota unificada /user/:username
 app.get("/user/:username", async (req, res) => {
   try {
     const username = req.params.username;
@@ -25,24 +33,23 @@ app.get("/user/:username", async (req, res) => {
       return res.status(404).json({ error: "Usuário não encontrado" });
     }
 
-    // Infos principais
     const infoRes = await fetch(`https://users.roblox.com/v1/users/${userId}`);
     const info = await infoRes.json();
 
-    // Avatar
     const avatarRes = await fetch(
       `https://thumbnails.roblox.com/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`
     );
     const avatarData = await avatarRes.json();
     const avatarUrl = avatarData.data[0]?.imageUrl;
 
-    // JSON final
-    res.json({
-      username: info.name,
-      displayName: info.displayName,
-      description: info.description,
-      created: info.created,
-      avatar: avatarUrl,
+res.json({
+  username: info.name,
+  displayName: info.displayName,
+  description: info.description || "Sem descrição",
+  created: formatDate(info.created),
+  avatar: avatarUrl,
+});
+
     });
   } catch (err) {
     console.error(err);
@@ -50,7 +57,7 @@ app.get("/user/:username", async (req, res) => {
   }
 });
 
-// 🔹 Rota só pra avatar (redirect pra imagem)
+
 app.get("/avatar/:username", async (req, res) => {
   try {
     const username = req.params.username;
@@ -80,3 +87,4 @@ app.get("/avatar/:username", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
+
