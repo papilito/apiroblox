@@ -4,24 +4,29 @@ import fetch from "node-fetch";
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-function formatDate(isoString) {
-  const d = new Date(isoString);
-  const day = String(d.getDate()).padStart(2, '0');
-  const month = String(d.getMonth() + 1).padStart(2, '0');
-  const year = d.getFullYear();
-  const hours = String(d.getHours()).padStart(2, '0');
-  const minutes = String(d.getMinutes()).padStart(2, '0');
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
+async function getUserId(username) {
+  try {
+    const res = await fetch(`https://users.roblox.com/v1/usernames/users`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usernames: [username] }),
+    });
+    const data = await res.json();
+    return data.data[0]?.id;
+  } catch (err) {
+    console.error("Erro ao buscar UserId:", err);
+    return null;
+  }
 }
 
-async function getUserId(username) {
-  const res = await fetch(`https://users.roblox.com/v1/usernames/users`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ usernames: [username] }),
-  });
-  const data = await res.json();
-  return data.data[0]?.id;
+function formatDate(isoString) {
+  const d = new Date(isoString);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
 }
 
 app.get("/user/:username", async (req, res) => {
@@ -42,21 +47,18 @@ app.get("/user/:username", async (req, res) => {
     const avatarData = await avatarRes.json();
     const avatarUrl = avatarData.data[0]?.imageUrl;
 
-res.json({
-  username: info.name,
-  displayName: info.displayName,
-  description: info.description || "Sem descrição",
-  created: formatDate(info.created),
-  avatar: avatarUrl,
-});
-
+    res.json({
+      username: info.name,
+      displayName: info.displayName,
+      description: info.description || "Sem descrição",
+      created: formatDate(info.created),
+      avatar: avatarUrl,
     });
   } catch (err) {
-    console.error(err);
+    console.error("Erro na rota /user/:username:", err);
     res.status(500).json({ error: "Erro interno" });
   }
 });
-
 
 app.get("/avatar/:username", async (req, res) => {
   try {
@@ -79,7 +81,7 @@ app.get("/avatar/:username", async (req, res) => {
       res.status(404).send("Avatar não encontrado");
     }
   } catch (err) {
-    console.error(err);
+    console.error("Erro na rota /avatar/:username:", err);
     res.status(500).send("Erro interno");
   }
 });
@@ -87,4 +89,3 @@ app.get("/avatar/:username", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor rodando na porta ${PORT}`);
 });
-
