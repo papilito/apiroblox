@@ -1,80 +1,82 @@
-const express = require("express");
-const fetch = require("node-fetch");
-const app = express();
+import express from "express";
+import fetch from "node-fetch";
 
-// Função para buscar os dados do usuário pelo username
-async function getUserData(username) {
-  const res = await fetch(`https://users.roblox.com/v1/users/by-username/${username}`);
-  if (!res.ok) return null;
-  return await res.json();
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+// Função para pegar ID pelo username
+async function getUserId(username) {
+  const res = await fetch(`https://users.roblox.com/v1/usernames/users`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ usernames: [username] }),
+  });
+  const data = await res.json();
+  return data.data[0]?.id;
 }
 
-// ----------------------
-// Avatar (redirect para a imagem)
-// ----------------------
-app.get("/avatar/:username", async (req, res) => {
-  const username = req.params.username;
-
+// 🔹 Rota unificada /user/:username
+app.get("/user/:username", async (req, res) => {
   try {
-    const userData = await getUserData(username);
-    if (!userData) return res.status(404).json({ error: "Usuário não encontrado" });
+    const username = req.params.username;
+    const userId = await getUserId(username);
 
-    const userId = userData.id;
-    const thumbRes = await fetch(
+    if (!userId) {
+      return res.status(404).json({ error: "Usuário não encontrado" });
+    }
+
+    // Infos principais
+    const infoRes = await fetch(`https://users.roblox.com/v1/users/${userId}`);
+    const info = await infoRes.json();
+
+    // Avatar
+    const avatarRes = await fetch(
       `https://thumbnails.roblox.com/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`
     );
-    const thumbData = await thumbRes.json();
-    if (!thumbData.data || thumbData.data.length === 0)
-      return res.status(404).json({ error: "Thumbnail não encontrada" });
+    const avatarData = await avatarRes.json();
+    const avatarUrl = avatarData.data[0]?.imageUrl;
 
-    // Faz o redirect direto para a imagem
-    res.redirect(thumbData.data[0].imageUrl);
-
+    // JSON final
+    res.json({
+      username: info.name,
+      displayName: info.displayName,
+      description: info.description,
+      created: info.created,
+      avatar: avatarUrl,
+    });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: "Erro interno na API" });
+    res.status(500).json({ error: "Erro interno" });
   }
 });
 
-// ----------------------
-// Username oficial
-// ----------------------
-app.get("/username/:username", async (req, res) => {
-  const username = req.params.username;
-  const userData = await getUserData(username);
-  if (!userData) return res.status(404).json({ error: "Usuário não encontrado" });
-  res.json({ username: userData.name });
+// 🔹 Rota só pra avatar (redirect pra imagem)
+app.get("/avatar/:username", async (req, res) => {
+  try {
+    const username = req.params.username;
+    const userId = await getUserId(username);
+
+    if (!userId) {
+      return res.status(404).send("Usuário não encontrado");
+    }
+
+    const avatarRes = await fetch(
+      `https://thumbnails.roblox.com/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`
+    );
+    const avatarData = await avatarRes.json();
+    const avatarUrl = avatarData.data[0]?.imageUrl;
+
+    if (avatarUrl) {
+      res.redirect(avatarUrl);
+    } else {
+      res.status(404).send("Avatar não encontrado");
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Erro interno");
+  }
 });
 
-// ----------------------
-// DisplayName / Apelido
-// ----------------------
-app.get("/displayname/:username", async (req, res) => {
-  const username = req.params.username;
-  const userData = await getUserData(username);
-  if (!userData) return res.status(404).json({ error: "Usuário não encontrado" });
-  res.json({ displayName: userData.displayName });
+app.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
 });
-
-// ----------------------
-// Data de criação
-// ----------------------
-app.get("/created/:username", async (req, res) => {
-  const username = req.params.username;
-  const userData = await getUserData(username);
-  if (!userData) return res.status(404).json({ error: "Usuário não encontrado" });
-  res.json({ created: userData.created });
-});
-
-// ----------------------
-// Rota teste
-// ----------------------
-app.get("/", (req, res) => {
-  res.send("API Roblox rodando! Rotas: /avatar/:username, /username/:username, /displayname/:username, /created/:username");
-});
-
-// ----------------------
-// Start
-// ----------------------
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`API rodando na porta ${PORT}`));
