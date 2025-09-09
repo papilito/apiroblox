@@ -8,50 +8,53 @@ async function getUserId(username) {
   const res = await fetch(`https://users.roblox.com/v1/usernames/users`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ usernames: [username] }),
+    body: JSON.stringify({ usernames: [username] })
   });
-
   const data = await res.json();
-  if (data.data && data.data.length > 0) {
-    return data.data[0].id;
-  }
-  return null;
+  if (!data.data || data.data.length === 0) return null;
+  return data.data[0].id;
 }
 
-app.get("/avatar/:username", async (req, res) => {
-  try {
-    const userId = await getUserId(req.params.username);
-    if (!userId) return res.status(404).json({ error: "Usuário não encontrado" });
-
-    const thumb = await fetch(
-      `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=420x420&format=Png&isCircular=false`
-    );
-    const thumbData = await thumb.json();
-
-    res.json({ avatar: thumbData.data[0].imageUrl });
-  } catch (err) {
-    res.status(500).json({ error: "Erro ao buscar avatar" });
-  }
+app.get("/", (req, res) => {
+  res.send("✅ API Roblox está funcionando!");
 });
 
-app.get("/info/:username", async (req, res) => {
-  try {
-    const userId = await getUserId(req.params.username);
-    if (!userId) return res.status(404).json({ error: "Usuário não encontrado" });
+app.get("/username/:username", async (req, res) => {
+  res.json({ username: req.params.username });
+});
 
-    const info = await fetch(`https://users.roblox.com/v1/users/${userId}`);
-    const infoData = await info.json();
+app.get("/description/:username", async (req, res) => {
+  const userId = await getUserId(req.params.username);
+  if (!userId) return res.status(404).json({ error: "Usuário não encontrado" });
 
-    const createdTimestamp = Math.floor(new Date(infoData.created).getTime() / 1000);
+  const r = await fetch(`https://users.roblox.com/v1/users/${userId}`);
+  const d = await r.json();
+  res.json({ description: d.description || "Sem descrição" });
+});
 
-    res.json({
-      username: infoData.name,
-      description: infoData.description || "Sem descrição",
-      createdTimestamp: createdTimestamp
-    });
-  } catch (err) {
-    res.status(500).json({ error: "Erro ao buscar informações" });
-  }
+app.get("/created/:username", async (req, res) => {
+  const userId = await getUserId(req.params.username);
+  if (!userId) return res.status(404).json({ error: "Usuário não encontrado" });
+
+  const r = await fetch(`https://users.roblox.com/v1/users/${userId}`);
+  const d = await r.json();
+
+  const createdDate = new Date(d.created);
+  const unixTime = Math.floor(createdDate.getTime() / 1000);
+
+  res.json({ created: `<t:${unixTime}:f>` });
+});
+
+app.get("/thumbnail/:username", async (req, res) => {
+  const userId = await getUserId(req.params.username);
+  if (!userId) return res.status(404).json({ error: "Usuário não encontrado" });
+
+  const r = await fetch(
+    `https://thumbnails.roblox.com/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`
+  );
+  const d = await r.json();
+
+  res.json({ thumbnail: d.data[0].imageUrl });
 });
 
 app.listen(PORT, () => {
