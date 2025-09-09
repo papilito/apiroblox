@@ -14,14 +14,22 @@ app.get("/roblox/:username", async (req, res) => {
       return res.status(404).json({ error: "Usuário não encontrado" });
     }
 
-    const userReq = await fetch(`https://users.roblox.com/v1/users/${idData.Id}`);
+    const userId = idData.Id;
+
+    const userReq = await fetch(`https://users.roblox.com/v1/users/${userId}`);
     const userData = await userReq.json();
+
+    const avatarReq = await fetch(`https://thumbnails.roblox.com/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`);
+    const avatarData = await avatarReq.json();
+
+    const avatarUrl = avatarData.data?.[0]?.imageUrl || null;
 
     res.json({
       username: userData.name,
       nickname: userData.displayName,
       description: userData.description,
-      created: `<t:${Math.floor(new Date(userData.created).getTime() / 1000)}:F>`
+      created: `<t:${Math.floor(new Date(userData.created).getTime() / 1000)}:F>`,
+      avatar: avatarUrl
     });
 
   } catch (err) {
@@ -29,4 +37,4 @@ app.get("/roblox/:username", async (req, res) => {
   }
 });
 
-app.listen(process.env.PORT || 3000, () => console.log("API rodando no Render 🚀"));
+app.listen(process.env.PORT || 3000, () => console.log("API rodando 🚀"));
