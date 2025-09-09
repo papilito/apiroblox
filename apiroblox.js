@@ -7,14 +7,14 @@ app.get("/roblox/:username", async (req, res) => {
   try {
     const { username } = req.params;
 
-    const idReq = await fetch(`https://api.roblox.com/users/get-by-username?username=${username}`);
-    const idData = await idReq.json();
+    const idReq = await fetch(`https://users.roblox.com/v1/users/by-username?username=${username}`);
+const idData = await idReq.json();
 
-    if (!idData.Id) {
-      return res.status(404).json({ error: "Usuário não encontrado" });
-    }
+if (!idData.id) {
+  return res.status(404).json({ error: "Usuário não encontrado" });
+}
 
-    const userId = idData.Id;
+const userId = idData.id;
 
     const userReq = await fetch(`https://users.roblox.com/v1/users/${userId}`);
     const userData = await userReq.json();
@@ -38,3 +38,4 @@ app.get("/roblox/:username", async (req, res) => {
 });
 
 app.listen(process.env.PORT || 3000, () => console.log("API rodando 🚀"));
+
