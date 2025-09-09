@@ -2,45 +2,94 @@ import express from "express";
 import fetch from "node-fetch";
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-app.get("/roblox/:username", async (req, res) => {
+// Função para pegar ID pelo username
+async function getUserId(username) {
   try {
-    const { username } = req.params;
+    const res = await fetch(`https://users.roblox.com/v1/usernames/users`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usernames: [username] }),
+    });
+    const data = await res.json();
+    return data.data[0]?.id;
+  } catch (err) {
+    console.error("Erro ao buscar UserId:", err);
+    return null;
+  }
+}
 
-    // 1. Pegar ID pelo username (novo endpoint)
-    const idReq = await fetch(`https://users.roblox.com/v1/users/by-username?username=${username}`);
-    const idData = await idReq.json();
+// Função para formatar a data
+function formatDate(isoString) {
+  const d = new Date(isoString);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  return `${day}/${month}/${year} ${hours}:${minutes}`;
+}
 
-    if (!idData.id) {
+// 🔹 Rota unificada: informações do usuário
+app.get("/user/:username", async (req, res) => {
+  try {
+    const username = req.params.username;
+    const userId = await getUserId(username);
+
+    if (!userId) {
       return res.status(404).json({ error: "Usuário não encontrado" });
     }
 
-    const userId = idData.id;
+    const infoRes = await fetch(`https://users.roblox.com/v1/users/${userId}`);
+    const info = await infoRes.json();
 
-    // 2. Pegar dados do usuário
-    const userReq = await fetch(`https://users.roblox.com/v1/users/${userId}`);
-    const userData = await userReq.json();
+    const avatarRes = await fetch(
+      `https://thumbnails.roblox.com/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`
+    );
+    const avatarData = await avatarRes.json();
+    const avatarUrl = avatarData.data[0]?.imageUrl;
 
-    // 3. Pegar avatar
-    const avatarReq = await fetch(`https://thumbnails.roblox.com/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`);
-    const avatarData = await avatarReq.json();
-
-    const avatarUrl = avatarData.data?.[0]?.imageUrl || null;
-
-    // 4. Retornar dados filtrados
     res.json({
-      username: userData.name,
-      nickname: userData.displayName,
-      description: userData.description || "Nenhuma descrição",
-      created: `<t:${Math.floor(new Date(userData.created).getTime() / 1000)}:F>`,
+      username: info.name,
+      displayName: info.displayName,
+      description: info.description || "Sem descrição",
+      created: formatDate(info.created),
       avatar: avatarUrl,
-      userId: userId
     });
-
   } catch (err) {
-    res.status(500).json({ error: "Erro ao buscar dados", details: err.message });
+    console.error("Erro na rota /user/:username:", err);
+    res.status(500).json({ error: "Erro interno" });
   }
 });
 
-// Render usa process.env.PORT
-app.listen(process.env.PORT || 3000, () => console.log("API rodando no Render 🚀"));
+// 🔹 Rota só para avatar
+app.get("/avatar/:username", async (req, res) => {
+  try {
+    const username = req.params.username;
+    const userId = await getUserId(username);
+
+    if (!userId) {
+      return res.status(404).send("Usuário não encontrado");
+    }
+
+    const avatarRes = await fetch(
+      `https://thumbnails.roblox.com/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`
+    );
+    const avatarData = await avatarRes.json();
+    const avatarUrl = avatarData.data[0]?.imageUrl;
+
+    if (avatarUrl) {
+      res.redirect(avatarUrl);
+    } else {
+      res.status(404).send("Avatar não encontrado");
+    }
+  } catch (err) {
+    console.error("Erro na rota /avatar/:username:", err);
+    res.status(500).send("Erro interno");
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`Servidor rodando na porta ${PORT}`);
+});
