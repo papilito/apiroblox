@@ -2,87 +2,55 @@ import express from "express";
 import fetch from "node-fetch";
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 10000;
 
 async function getUserId(username) {
-  try {
-    const res = await fetch(`https://users.roblox.com/v1/usernames/users`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ usernames: [username] }),
-    });
-    const data = await res.json();
-    return data.data[0]?.id;
-  } catch (err) {
-    console.error("Erro ao buscar UserId:", err);
-    return null;
+  const res = await fetch(`https://users.roblox.com/v1/usernames/users`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ usernames: [username] }),
+  });
+
+  const data = await res.json();
+  if (data.data && data.data.length > 0) {
+    return data.data[0].id;
   }
+  return null;
 }
-
-function formatDate(isoString) {
-  const d = new Date(isoString);
-  const day = String(d.getDate()).padStart(2, "0");
-  const month = String(d.getMonth() + 1).padStart(2, "0");
-  const year = d.getFullYear();
-  const hours = String(d.getHours()).padStart(2, "0");
-  const minutes = String(d.getMinutes()).padStart(2, "0");
-  return `${day}/${month}/${year} ${hours}:${minutes}`;
-}
-
-app.get("/user/:username", async (req, res) => {
-  try {
-    const username = req.params.username;
-    const userId = await getUserId(username);
-
-    if (!userId) {
-      return res.status(404).json({ error: "Usuário não encontrado" });
-    }
-
-    const infoRes = await fetch(`https://users.roblox.com/v1/users/${userId}`);
-    const info = await infoRes.json();
-
-    const avatarRes = await fetch(
-      `https://thumbnails.roblox.com/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`
-    );
-    const avatarData = await avatarRes.json();
-    const avatarUrl = avatarData.data[0]?.imageUrl;
-
-    res.json({
-      username: info.name,
-      displayName: info.displayName,
-      description: info.description || "Sem descrição",
-      created: formatDate(info.created),
-      avatar: avatarUrl,
-    });
-  } catch (err) {
-    console.error("Erro na rota /user/:username:", err);
-    res.status(500).json({ error: "Erro interno" });
-  }
-});
 
 app.get("/avatar/:username", async (req, res) => {
   try {
-    const username = req.params.username;
-    const userId = await getUserId(username);
+    const userId = await getUserId(req.params.username);
+    if (!userId) return res.status(404).json({ error: "Usuário não encontrado" });
 
-    if (!userId) {
-      return res.status(404).send("Usuário não encontrado");
-    }
-
-    const avatarRes = await fetch(
-      `https://thumbnails.roblox.com/v1/users/avatar?userIds=${userId}&size=420x420&format=Png&isCircular=false`
+    const thumb = await fetch(
+      `https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=420x420&format=Png&isCircular=false`
     );
-    const avatarData = await avatarRes.json();
-    const avatarUrl = avatarData.data[0]?.imageUrl;
+    const thumbData = await thumb.json();
 
-    if (avatarUrl) {
-      res.redirect(avatarUrl);
-    } else {
-      res.status(404).send("Avatar não encontrado");
-    }
+    res.json({ avatar: thumbData.data[0].imageUrl });
   } catch (err) {
-    console.error("Erro na rota /avatar/:username:", err);
-    res.status(500).send("Erro interno");
+    res.status(500).json({ error: "Erro ao buscar avatar" });
+  }
+});
+
+app.get("/info/:username", async (req, res) => {
+  try {
+    const userId = await getUserId(req.params.username);
+    if (!userId) return res.status(404).json({ error: "Usuário não encontrado" });
+
+    const info = await fetch(`https://users.roblox.com/v1/users/${userId}`);
+    const infoData = await info.json();
+
+    const createdTimestamp = Math.floor(new Date(infoData.created).getTime() / 1000);
+
+    res.json({
+      username: infoData.name,
+      description: infoData.description || "Sem descrição",
+      createdTimestamp: createdTimestamp
+    });
+  } catch (err) {
+    res.status(500).json({ error: "Erro ao buscar informações" });
   }
 });
 
